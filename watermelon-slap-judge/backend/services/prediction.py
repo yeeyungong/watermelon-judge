@@ -45,16 +45,16 @@ class WatermelonJudge:
         using thresholds derived directly from your Excel dataset.
         """
         centroid = features.get('spectral_centroid', 0)
-        rms = features.get('rms_energy', 0)  # Note: extract_features uses 'rms_energy'
-        duration_ms = features.get('duration', 0) * 1000  # Convert seconds to ms
+        rms = features.get('rms_volume', 0)
+        duration_ms = features.get('duration_ms', 0)
         zcr = features.get('zero_crossing_rate', 0)
-        
-        # Hand claps have very high spectral centroid (>1800) and short duration
-        if centroid > 1800 or duration_ms < 150:
+
+        # Too short to be a real slap
+        if duration_ms < 150:
             return False
-            
-        # Background noise / missed slaps have extremely low RMS and ZCR
-        if rms < 0.05 or zcr < 0.02:
+
+        # Completely silent recording
+        if rms < 0.001:
             return False
             
         return True

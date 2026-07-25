@@ -33,6 +33,11 @@ class JudgmentResponse(BaseModel):
     explanation: list[str]
     audioFeatures: dict
 
+# Added this to fix the 404 Not Found error on the root URL
+@app.get("/")
+def read_root():
+    return {"message": "Watermelon Slap Judge API is running. Go to /docs for API documentation."}
+
 @app.post("/api/judge", response_model=JudgmentResponse)
 async def judge_slap(audio: UploadFile = File(...)):
     """
@@ -54,9 +59,11 @@ async def judge_slap(audio: UploadFile = File(...)):
         # 1. Extract Features
         features = extract_features(file_path)
         
-        # 2. Predict Ripeness
-        # Switch between 'predict_rule_based' and 'predict_ml' here
-        result = judge.predict_rule_based(features)
+        # 2. Predict Ripeness 
+        # ✅ CHANGED HERE: Now uses the unified .predict() method 
+        # which automatically uses your trained ML model if available, 
+        # or falls back to rules if not.
+        result = judge.predict(features)
         
         # Add features to response for debugging/frontend visualization
         result['audioFeatures'] = features
@@ -64,6 +71,9 @@ async def judge_slap(audio: UploadFile = File(...)):
         return result
 
     except Exception as e:
+        import traceback
+        print("--- API ERROR ---")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:

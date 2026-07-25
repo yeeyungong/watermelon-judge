@@ -53,15 +53,14 @@ def extract_features(file_path: str) -> Dict[str, float]:
         mean_mfccs = [float(np.mean(mfcc)) for mfcc in mfccs]
 
         return {
-            "duration": round(duration, 3),
-            "rms_energy": round(rms_energy, 4),
+            "rms_volume": round(rms_energy, 4),
+            "peak_freq": round(dominant_frequency, 1),
+            "duration_ms": round(duration * 1000, 1),
             "spectral_centroid": round(mean_centroid, 1),
             "zero_crossing_rate": round(mean_zcr, 4),
-            "dominant_frequency": round(dominant_frequency, 1),
-            "mfcc_1": round(mean_mfccs[0], 2),
-            "mfcc_2": round(mean_mfccs[1], 2),
-            "mfcc_3": round(mean_mfccs[2], 2),
-            "mfcc_4": round(mean_mfccs[3], 2),
+            "slap_velocity": round(rms_energy * 10, 2),  # Approximated from RMS
+            "impact_score": round(min(100, rms_energy * 100), 2),  # Approximated from RMS
+            "confidence": round(0.9, 2),  # Placeholder for audio quality confidence
         }
 
     except Exception as e:

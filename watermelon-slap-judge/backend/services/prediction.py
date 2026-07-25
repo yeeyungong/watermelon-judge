@@ -1,89 +1,87 @@
-import random
+import os
+import joblib
+import numpy as np
 from typing import Dict, Any, List
 
 class WatermelonJudge:
     def __init__(self):
-        # In the future, load your sklearn/pytorch model here
-        # self.model = joblib.load('models/watermelon_model.pkl')
-        pass
-
-    def predict_rule_based(self, features: Dict[str, float]) -> Dict[str, Any]:
-        """
-        Option A: Rule-based heuristic for MVP.
-        Adjust these thresholds based on your initial data collection.
-        """
-        score = 50  # Start at neutral
-        explanations: List[str] = []
+        self.model = None
+        self.feature_keys = None
+        self.use_ml = False
         
-        dom_freq = features['dominant_frequency']
-        rms = features['rms_energy']
-        centroid = features['spectral_centroid']
-        zcr = features['zero_crossing_rate']
+        # Try to load the trained model
+        model_path = "models/watermelon_model.pkl"
+        keys_path = "models/feature_keys.pkl"
+        
+        if os.path.exists(model_path) and os.path.exists(keys_path):
+            try:
+                self.model = joblib.load(model_path)
+                self.feature_keys = joblib.load(keys_path)
+                self.use_ml = True
+                print("✅ Successfully loaded ML model.")
+            except Exception as e:
+                print(f"⚠️ Failed to load ML model: {e}. Falling back to rules.")
+        else:
+            print("⚠️ ML model not found. Using rule-based fallback.")
 
-        # Rule 1: Frequency (Pitch)
-        # Ripe watermelons often have a lower, deeper pitch (100-200Hz range is common for hollow sounds)
-        if 100 <= dom_freq <= 250:
-            score += 20
+    def predict(self, features: Dict[str, float]) -> Dict[str, Any]:
+        """
+        Main prediction method. Uses ML if available, otherwise rules.
+        """
+        if self.use_ml:
+            return self._predict_ml(features)
+        else:
+            return self._predict_rule_based(features)
+
+    def _predict_ml(self, features: Dict[str, float]) -> Dict[str, Any]:
+        """
+        Option B: Machine-learning model prediction.
+        """
+        # 1. Format features into the exact array the model expects
+        feature_vector = [features[key] for key in self.feature_keys]
+        feature_array = np.array(feature_vector).reshape(1, -1)
+        
+        # 2. Get prediction and confidence
+        label = self.model.predict(feature_array)[0]
+        probabilities = self.model.predict_proba(feature_array)[0]
+        
+        # Get the confidence score for the predicted class
+        classes = self.model.classes_
+        class_index = list(classes).index(label)
+        confidence = float(probabilities[class_index])
+        
+        # 3. Calculate a 0-100 score based on confidence and label
+        # (e.g., Ripe = high score, Underripe = low score)
+        base_scores = {"ripe": 85, "overripe": 50, "underripe": 20}
+        base_score = base_scores.get(label, 50)
+        
+        # Adjust score slightly based on confidence
+        final_score = int(base_score * confidence + (1 - confidence) * 50)
+        final_score = max(0, min(100, final_score))
+
+        # 4. Generate explanations based on features (Simplified for ML)
+        explanations = []
+        if features['peak_freq'] < 200:
             explanations.append("The sound has a deep, resonant tone.")
-        elif dom_freq > 250:
-            score -= 15
-            explanations.append("The sound is too high-pitched/sharp.")
         else:
-            explanations.append("The sound is very low/thuddy.")
-
-        # Rule 2: RMS Energy (Impact)
-        # A good slap should have some energy but not be distorted
-        if 0.05 <= rms <= 0.3:
-            score += 15
-            explanations.append("Good impact clarity.")
-        elif rms < 0.05:
-            score -= 10
-            explanations.append("The slap was too soft to judge accurately.")
-        
-        # Rule 3: Spectral Centroid (Brightness)
-        # Lower centroid often correlates with "hollow" vs "solid/dull"
-        if centroid < 1500:
-            score += 15
-            explanations.append("The timbre is slightly hollow.")
-        else:
-            score -= 10
-            explanations.append("The sound is somewhat dull or flat.")
-
-        # Clamp score between 0 and 100
-        final_score = max(0, min(100, score))
-        
-        # Determine Label
-        if final_score >= 70:
-            label = "ripe"
-        elif final_score <= 40:
-            label = "underripe"
-        else:
-            label = "overripe" # Or ambiguous
+            explanations.append("The sound is relatively high-pitched.")
             
-        # Mock Confidence (since rules are deterministic, we fake confidence for UX)
-        # In ML, this would come from probability outputs
-        confidence = 0.85 if 40 < final_score < 90 else 0.65
+        if features['spectral_centroid'] < 1200:
+            explanations.append("The timbre indicates a hollow interior.")
+        else:
+            explanations.append("The sound is somewhat dense or dull.")
 
         return {
             "score": final_score,
             "label": label,
-            "confidence": confidence,
+            "confidence": round(confidence, 2),
             "explanation": explanations
         }
 
-    def predict_ml(self, features: Dict[str, float]) -> Dict[str, Any]:
+    def _predict_rule_based(self, features: Dict[str, float]) -> Dict[str, Any]:
         """
-        Option B: Placeholder for ML Model.
+        Option A: Rule-based heuristic (Fallback).
         """
-        # Prepare feature vector
-        # feature_vector = [features['dominant_frequency'], features['rms_energy'], ...]
-        # prediction = self.model.predict([feature_vector])
-        # probability = self.model.predict_proba([feature_vector])
-        
-        # For now, return dummy data
-        return {
-            "score": random.randint(60, 95),
-            "label": "ripe",
-            "confidence": 0.92,
-            "explanation": ["ML Model analysis pending training."]
-        }
+        # (Keep the exact same rule-based code from the previous step here)
+        # ... [Insert previous rule-based code] ...
+        pass

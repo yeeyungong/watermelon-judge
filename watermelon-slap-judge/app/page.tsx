@@ -137,7 +137,7 @@ export default function Home() {
             </div>
 
             {/* Technique & Vibration Assessment */}
-            {result.audioFeatures && (
+            {/* {result.audioFeatures && (
               <div className="mt-6 pt-6 border-t border-gray-700 grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-xs text-gray-500 uppercase block mb-1">Slap Technique</span>
@@ -152,7 +152,7 @@ export default function Home() {
                   </span>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
         )}
       </div>

@@ -1,14 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AudioRecorder from '@/app/component/AudioRecorder';
 import { submitAudioForJudgment, JudgmentResult } from '@/app/services/judgeApi';
 import { Activity, Zap, Volume2, Gauge, TrendingUp } from 'lucide-react';
+
+const LOADING_MESSAGES = [
+  "Consulting the Great Watermelon Master...",
+  "The trial has begun...",
+  "Summoning ancient melon knowledge...",
+  "Performing acoustic forensics...",
+  "Calibrating the melon-o-meter...",
+  "Running 67 neural networks on your slap...",
+  "Decoding the language of gourds...",
+  "Asking the AI nicely...",
+  "Cross-referencing 10,000 watermelons...",
+  "The verdict approaches...",
+  "Measuring quantum resonance...",
+  "Consulting ISO 9001 Melon Standards...",
+];
+
+const LABEL_EMOJI: Record<string, string> = { ripe: '🍉', underripe: '🌱', overripe: '💀' };
+const VERDICT_TEXT: Record<string, string> = {
+  ripe: 'THIS MELON SLAPS',
+  underripe: 'NOT READY, CHIEF',
+  overripe: 'TOO LATE, BRO',
+};
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<JudgmentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [reportId] = useState(() => Math.random().toString(36).substring(2, 10).toUpperCase());
+  const [analysisTime] = useState(() => (Math.random() * 2 + 0.8).toFixed(3));
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (loading) {
+      setMsgIndex(0);
+      intervalRef.current = setInterval(() => {
+        setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length);
+      }, 1800);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [loading]);
 
   const handleRecordingComplete = async (blob: Blob, duration: number) => {
     if (duration < 0.5) {
@@ -58,7 +96,7 @@ export default function Home() {
         {loading && (
           <div className="mt-8 text-center">
             <div className="inline-block w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-            <p className="mt-3 text-green-400 font-mono text-sm">ANALYZING ACOUSTIC FEATURES...</p>
+            <p className="mt-3 text-green-400 font-mono text-sm italic">{LOADING_MESSAGES[msgIndex]}</p>
           </div>
         )}
 
@@ -70,19 +108,32 @@ export default function Home() {
 
         {result && (
           <div className="mt-8 bg-gray-900/80 backdrop-blur-sm p-6 rounded-xl border border-green-500/30 shadow-2xl shadow-green-500/10 animate-in fade-in slide-in-from-bottom-4">
-            {/* Main Score Display */}
+
+            {/* Report header */}
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-700">
+              <span className="text-xs text-gray-400 font-mono">REPORT #{reportId}</span>
+              <span className="text-xs text-gray-400 font-mono">ANALYSIS: {analysisTime}s</span>
+            </div>
+
+            {/* Verdict */}
+            <div className="text-center mb-2">
+              <p className="text-xs font-mono text-gray-500 uppercase tracking-widest mb-1">The Judge Has Spoken</p>
+              <p className="text-lg font-black text-white tracking-widest">{VERDICT_TEXT[result.label] ?? 'UNKNOWN MELON'}</p>
+            </div>
+
+            {/* Label + score */}
             <div className="text-center mb-6">
-              <div className={`inline-block px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest border-2
-                ${result.label === 'ripe' ? 'bg-green-500/20 text-green-400 border-green-500' : 
-                  result.label === 'overripe' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 
+              <div className={`inline-block px-6 py-2 rounded-full text-sm font-bold uppercase tracking-widest border-2 mt-2
+                ${result.label === 'ripe' ? 'bg-green-500/20 text-green-400 border-green-500' :
+                  result.label === 'overripe' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' :
                   'bg-blue-500/20 text-blue-400 border-blue-500'}`}>
-                {result.label}
+                {LABEL_EMOJI[result.label]} {result.label}
               </div>
               <div className="mt-4">
                 <div className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500">
                   {result.score}<span className="text-2xl text-gray-500">/100</span>
                 </div>
-                <p className="text-gray-400 mt-2 font-mono text-sm">CONFIDENCE: {Math.round(result.confidence * 100)}%</p>
+                <p className="text-gray-400 mt-2 font-mono text-sm">CONFIDENCE: {(result.confidence * 100).toFixed(4)}%</p>
               </div>
             </div>
 
@@ -136,25 +187,18 @@ export default function Home() {
               </ul>
             </div>
 
-            {/* Technique & Vibration Assessment */}
-            {/* {result.audioFeatures && (
-              <div className="mt-6 pt-6 border-t border-gray-700 grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-xs text-gray-500 uppercase block mb-1">Slap Technique</span>
-                  <span className={`font-bold ${getSlapTechnique(result.audioFeatures.slap_velocity).color}`}>
-                    {getSlapTechnique(result.audioFeatures.slap_velocity).label}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-xs text-gray-500 uppercase block mb-1">Watermelon Vibration</span>
-                  <span className={`font-bold ${getVibrationLevel(result.audioFeatures.spectral_centroid).color}`}>
-                    {getVibrationLevel(result.audioFeatures.spectral_centroid).label}
-                  </span>
-                </div>
-              </div>
-            )} */}
+            {/* Certified badge */}
+            <div className="mt-6 pt-4 border-t border-gray-800 text-center">
+              <p className="text-xs text-gray-400 font-mono">🏅 Certified by the International Watermelon Acoustics Institute™</p>
+              <p className="text-xs text-gray-400 font-mono mt-1">This report is legally non-binding and scientifically questionable.</p>
+            </div>
           </div>
         )}
+
+        <footer className="mt-10 text-center pb-6 space-y-1">
+          <p className="text-xs text-gray-400 font-mono uppercase tracking-widest">Because someone had to do it.</p>
+          <p className="text-xs text-green-400 font-mono">Powered by Qwen AI</p>
+        </footer>
       </div>
     </main>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, Square, Play, Upload } from 'lucide-react';
+import { Mic, Square } from 'lucide-react';
 
 interface AudioRecorderProps {
   onRecordingComplete: (blob: Blob, duration: number) => void;
@@ -16,6 +16,26 @@ export default function AudioRecorder({ onRecordingComplete }: AudioRecorderProp
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [frequencyBars, setFrequencyBars] = useState<number[]>(Array(16).fill(0));
+
+  const stopVisualizer = () => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    sourceRef.current?.disconnect();
+    sourceRef.current = null;
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      void audioContextRef.current.close();
+    }
+    audioContextRef.current = null;
+    setFrequencyBars(Array(16).fill(0));
+  };
+
+  useEffect(() => () => stopVisualizer(), []);
 
   // Handle Start Recording
   const startRecording = async () => {
@@ -24,6 +44,24 @@ export default function AudioRecorder({ onRecordingComplete }: AudioRecorderProp
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
+
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.72;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      audioContextRef.current = audioContext;
+      sourceRef.current = source;
+
+      const frequencyData = new Uint8Array(analyser.frequencyBinCount);
+      const updateVisualizer = () => {
+        analyser.getByteFrequencyData(frequencyData);
+        // The lowest bin is mostly microphone rumble rather than the slap.
+        setFrequencyBars(Array.from(frequencyData.slice(1, 17)));
+        animationFrameRef.current = requestAnimationFrame(updateVisualizer);
+      };
+      updateVisualizer();
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -42,6 +80,7 @@ export default function AudioRecorder({ onRecordingComplete }: AudioRecorderProp
         
         // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
+        stopVisualizer();
       };
 
       mediaRecorder.start();
@@ -61,7 +100,7 @@ export default function AudioRecorder({ onRecordingComplete }: AudioRecorderProp
 
   // Handle Stop Recording
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -78,15 +117,13 @@ export default function AudioRecorder({ onRecordingComplete }: AudioRecorderProp
       {/* Visual Feedback Area */}
       <div className={`w-full h-32 mb-6 rounded-lg flex items-center justify-center transition-colors ${isRecording ? 'bg-red-50 animate-pulse' : 'bg-gray-50'}`}>
         {isRecording ? (
-          <div className="flex gap-1 items-end h-16">
-            {/* Simple CSS bars simulating a waveform */}
-            {[...Array(10)].map((_, i) => (
+          <div className="flex gap-1 items-end h-16" aria-label="Live frequency spectrum">
+            {frequencyBars.map((value, i) => (
               <div 
                 key={i} 
-                className="w-2 bg-red-500 rounded-full animate-bounce"
+                className="w-2 bg-red-500 rounded-full transition-[height] duration-75"
                 style={{ 
-                  height: `${Math.random() * 100}%`, 
-                  animationDelay: `${i * 0.1}s` 
+                  height: `${Math.max(8, Math.round((value / 255) * 100))}%`,
                 }} 
               />
             ))}
